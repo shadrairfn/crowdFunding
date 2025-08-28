@@ -44,11 +44,20 @@ const userSchema = new Schema(
         role : {
             type: String,
             required: true,
-            enum: ['mitra', 'investor'],
-            default: 'investor'
+            enum: ['mitra', 'donatur']
         },
         refreshToken: {
             type: String
+        },
+        verification : {
+            type: Boolean,
+            default: false
+        },
+        otp: {
+            type: String
+        },
+        otpExpiry: {
+            type: Date
         }
     },
     { timestamps: true}
