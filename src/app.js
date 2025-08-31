@@ -2,6 +2,7 @@ import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser" 
 import userRoutes from "./routes/userRoutes.js"
+import campaignRoutes from "./routes/campaignRoutes.js"
 
 const app = express()
 
@@ -21,5 +22,8 @@ app.use(cookieParser())
 
 // User
 app.use("/api/v1/user", userRoutes)
+
+// Campaign
+app.use("/api/v1/campaign", campaignRoutes)
 
 export default app

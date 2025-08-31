@@ -36,4 +36,12 @@ const verifyJWT = async (req, res, next) => {
   }
 };
 
-export { verifyJWT };
+const mitraOnly = (req, res, next) => {
+  if (req.user && req.user.role === "mitra") {
+    next();
+  } else {
+    return res.status(403).json({ message: "Access denied, mitra only" });
+  }
+};
+
+export { verifyJWT, mitraOnly };
