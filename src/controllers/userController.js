@@ -3,6 +3,21 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/userModel.js"
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+
+// setup nodemailer
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// generate OTP
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 const generateAndAccessToken = async (userId) => {
     try {
@@ -21,7 +36,8 @@ const generateAndAccessToken = async (userId) => {
     }
 }
 
-const registerUser = asyncHandler(async (req, res) => {
+// Initiate registration and send OTP
+const initiateRegistration = asyncHandler(async (req, res) => {
     const {fullname, username, email, password, phone, role} = req.body
 
     // validation
@@ -39,32 +55,149 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new apiError(409, "username or email already exist")
     }
 
-    const user = await User.create({
+    // Create temporary user with unverified status
+    const tempUser = await User.create({
         fullname,
         email,
         password,
         username: username.toLowerCase(),
         phone,
-        role
+        role,
+        verification: false
     })
 
-    const createdUser = await User.findById(user._id).select(
-        "-password -refreshToken"
-    )
+    // Generate OTP
+    const otp = generateOTP();
+    const expiry = Date.now() + 5 * 60 * 1000;
 
-    if (!createdUser) {
-        throw new apiError(500, "Something went wrong when creating user")
+    tempUser.otp = otp;
+    tempUser.otpExpiry = expiry;
+    await tempUser.save();
+
+    // Send OTP email
+    await transporter.sendMail({
+        from: `"CrowdFunding App" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Verify Your Registration - OTP Code",
+        text: `Your OTP code is ${otp}. Valid for 5 minutes.`,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Welcome to CrowdFunding!</h2>
+                <p>Your OTP verification code is:</p>
+                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0;">
+                    ${otp}
+                </div>
+                <p>This code will expire in 5 minutes.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+            </div>
+        `
+    });
+
+    return res
+        .status(200)
+        .json({
+            message: "OTP sent to your email. Please verify to complete registration.",
+            userId: tempUser._id,
+            email: tempUser.email
+        })
+})
+
+// Verify OTP and complete registration
+const completeRegistration = asyncHandler(async (req, res) => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        throw new apiError(400, "Email and OTP are required");
     }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new apiError(404, "User not found");
+    }
+
+    if (user.verification) {
+        throw new apiError(400, "User already verified");
+    }
+
+    if (user.otp !== otp) {
+        throw new apiError(400, "Invalid OTP");
+    }
+
+    if (Date.now() > user.otpExpiry) {
+        throw new apiError(400, "OTP has expired. Please request a new one.");
+    }
+
+    // Complete registration
+    user.verification = true;
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+    await user.save();
+
+    const verifiedUser = await User.findById(user._id).select(
+        "-password -refreshToken -otp -otpExpiry"
+    )
 
     return res
         .status(201)
         .json({
-            message: "Registration Successfully",
+            message: "Registration completed successfully!",
             user: {
-                id: user._id,
-                email: user.email,
-                username: user.username,
+                id: verifiedUser._id,
+                email: verifiedUser.email,
+                username: verifiedUser.username,
+                fullname: verifiedUser.fullname,
+                verification: verifiedUser.verification
             }
+        })
+})
+
+// Resend OTP for registration
+const resendRegistrationOTP = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        throw new apiError(400, "Email is required");
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new apiError(404, "User not found");
+    }
+
+    if (user.verification) {
+        throw new apiError(400, "User already verified");
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    const expiry = Date.now() + 5 * 60 * 1000;
+
+    user.otp = otp;
+    user.otpExpiry = expiry;
+    await user.save();
+
+    // Send new OTP email
+    await transporter.sendMail({
+        from: `"CrowdFunding App" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "New OTP Code - Complete Your Registration",
+        text: `Your new OTP code is ${otp}. Valid for 5 minutes.`,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>New OTP Code</h2>
+                <p>Your new OTP verification code is:</p>
+                <div style="background-color: #f0f0f0; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0;">
+                    ${otp}
+                </div>
+                <p>This code will expire in 5 minutes.</p>
+            </div>
+        `
+    });
+
+    return res
+        .status(200)
+        .json({
+            message: "New OTP sent to your email"
         })
 })
 
@@ -78,6 +211,10 @@ const loginUser = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
         throw new apiError(404, "User can't be found");
+    }
+
+    if (!user.verification) {
+        throw new apiError(403, "Please verify your email before logging in");
     }
 
     const isPasswordMatched = await bcrypt.compare(password, user.password);
@@ -102,7 +239,8 @@ const loginUser = asyncHandler(async (req, res) => {
             id: user._id,
             email: user.email,
             username: user.username,
-            fullname: user.fullname
+            fullname: user.fullname,
+            verification: user.verification
         },
     });
 });
@@ -196,7 +334,9 @@ const accessRefreshToken = asyncHandler (async (req, res) => {
 })
 
 export {
-    registerUser,
+    initiateRegistration,
+    completeRegistration,
+    resendRegistrationOTP,
     loginUser,
     getUserProfile,
     accessRefreshToken,
