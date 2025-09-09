@@ -14,11 +14,19 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// generate OTP
+/**
+ * Generate a 6-digit OTP code as string
+ * @returns {string} OTP (One-Time Password)
+ */
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+/**
+ * Generate access and refresh tokens for user
+ * @param {string} userId - User ID
+ * @returns {Object} Object containing new access and refresh tokens
+ */
 const generateAndAccessToken = async (userId) => {
     try {
         const user = await User.findById(userId)
@@ -36,7 +44,21 @@ const generateAndAccessToken = async (userId) => {
     }
 }
 
-// Initiate registration and send OTP
+/**
+ * Initiate user registration by creating temporary user
+ * and sending OTP email for verification.
+ * 
+ * @route   POST /api/v1/user/register/initiate
+ * @param   {string} fullname - Full name of the user
+ * @param   {string} username - Unique username
+ * @param   {string} email - Email address
+ * @param   {string} password - Plain password
+ * @param   {string} phone - User phone number
+ * @param   {string} role - User role ("donor" / "mitra")
+ * @returns {Object} 200 - Success message and userId
+ * @throws  {apiError} 400 - Missing or invalid fields
+ * @throws  {apiError} 409 - Duplicate email/username
+ */
 const initiateRegistration = asyncHandler(async (req, res) => {
     const {fullname, username, email, password, phone, role} = req.body
 
@@ -48,11 +70,11 @@ const initiateRegistration = asyncHandler(async (req, res) => {
     }
     
     const existedUser = await User.findOne({
-        $or: [{username},{email}]
+        $or: [{email}]
     })
 
     if (existedUser) {
-        throw new apiError(409, "username or email already exist")
+        throw new apiError(400, "Email already exist")
     }
 
     // Create temporary user with unverified status
@@ -102,7 +124,15 @@ const initiateRegistration = asyncHandler(async (req, res) => {
         })
 })
 
-// Verify OTP and complete registration
+/**
+ * Complete user registration by verifying OTP and updating user status.
+ * @route   POST /api/v1/user/register/verify
+ * @param   {string} email - User email
+ * @param   {string} otp - OTP code received via email
+ * @returns {Object} 200 - Created user object
+ * @throws  {apiError} 400 - Missing email or OTP, Invalid OTP, User already verified
+ * @throws  {apiError} 404 - User not found
+ */
 const completeRegistration = asyncHandler(async (req, res) => {
     const { email, otp } = req.body;
 
@@ -138,7 +168,7 @@ const completeRegistration = asyncHandler(async (req, res) => {
     )
 
     return res
-        .status(201)
+        .status(200)
         .json({
             message: "Registration completed successfully!",
             user: {
@@ -151,7 +181,14 @@ const completeRegistration = asyncHandler(async (req, res) => {
         })
 })
 
-// Resend OTP for registration
+/**
+ * Resend OTP for user registration.
+ * @route   POST /api/v1/user/register/resend-otp
+ * @param   {string} email - User email
+ * @returns {Object} 200 - Success message
+ * @throws  {apiError} 400 - Missing email or User already verified
+ * @throws  {apiError} 404 - User not found
+ */
 const resendRegistrationOTP = asyncHandler(async (req, res) => {
     const { email } = req.body;
 
@@ -201,6 +238,15 @@ const resendRegistrationOTP = asyncHandler(async (req, res) => {
         })
 })
 
+/**
+ * Login user and generate access and refresh tokens.
+ * @route   POST /api/v1/user/login
+ * @param   {string} email - User email
+ * @param   {string} password - User password
+ * @returns {Object} 200 - Access token and user object
+ * @throws  {apiError} 400 - Missing email or password, Password incorrect, User not verified
+ * @throws  {apiError} 404 - User not found
+ */
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
@@ -214,12 +260,12 @@ const loginUser = asyncHandler(async (req, res) => {
     }
 
     if (!user.verification) {
-        throw new apiError(403, "Please verify your email before logging in");
+        throw new apiError(400, "Please verify your email before logging in");
     }
 
     const isPasswordMatched = await bcrypt.compare(password, user.password);
     if (!isPasswordMatched) {
-        throw new apiError(401, "Password incorrect");
+        throw new apiError(400, "Password incorrect");
     }
 
     const { accessToken, refreshToken } = await generateAndAccessToken(user._id)
@@ -245,6 +291,11 @@ const loginUser = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Logout user and clear refresh token cookie.
+ * @route   POST /api/v1/user/logout
+ * @returns {Object} 200 - Success message
+ */
 const logoutUser = asyncHandler(async (req, res) => {
     console.log("request cookies:", req.cookies);
     
@@ -282,6 +333,13 @@ const logoutUser = asyncHandler(async (req, res) => {
     }
 });
 
+/**
+ * Get user profile.
+ * @route   GET /api/v1/user/:username
+ * @param   {string} username - User username
+ * @returns {Object} 200 - User object
+ * @throws  {apiError} 404 - User not found
+ */
 const getUserProfile = asyncHandler(async (req, res) => {
     const { username } = req.params;
     const user = await User.findOne({ username }).select("-password -refreshToken");
@@ -295,13 +353,19 @@ const getUserProfile = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Refresh access token using refresh token from cookie.
+ * @route   POST /api/v1/user/refresh-token
+ * @returns {Object} 200 - New access token
+ * @throws  {apiError} 400 - Refresh token missing
+ */
 const accessRefreshToken = asyncHandler (async (req, res) => {
     console.log(req.cookies);
     
     const tokenFromCookie = req.cookies.refreshToken
 
     if (!tokenFromCookie) {
-        throw new apiError(401, "Refresh token missing")
+        throw new apiError(400, "Refresh token missing")
     }
 
     try {

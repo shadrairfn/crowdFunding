@@ -3,6 +3,14 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { Campaign } from "../models/campaignModel.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
+/**
+ * Create a new campaign.
+ * @route   POST /api/v1/campaign/uploadCampaign
+ * @param   {Object} req.body - Campaign details
+ * @param   {Array} req.files - Campaign images
+ * @returns {Object} 200 - Created campaign object
+ * @throws  {apiError} 400 - Invalid input
+ */
 const createCampaign = asyncHandler(async (req, res) => {
     const {title, description, goal_amount, location, images, event_date} = req.body;
 
@@ -35,12 +43,17 @@ const createCampaign = asyncHandler(async (req, res) => {
         creator: req.user._id
     });
 
-    return res.status(201).json({
+    return res.status(200).json({
         message: "Campaign created successfully",
         campaign
     });
 })
 
+/**
+ * Get all campaigns.
+ * @route   GET /api/v1/campaign/campaigns
+ * @returns {Object} 200 - Array of campaign objects
+ */
 const getAllCampaigns = asyncHandler(async (req, res) => {
     const campaigns = await Campaign.find().populate("creator", "username email fullname");
     
@@ -64,7 +77,13 @@ const getAllCampaigns = asyncHandler(async (req, res) => {
     });
 })
 
-// Get single campaign with donation details
+/**
+ * Get a single campaign by ID.
+ * @route   GET /api/v1/campaign/campaigns/:id
+ * @param   {String} req.params.id - Campaign ID
+ * @returns {Object} 200 - Campaign object
+ * @throws  {apiError} 404 - Campaign not found
+ */
 const getCampaignById = asyncHandler(async (req, res) => {
     const { id } = req.params;
     

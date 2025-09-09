@@ -6,6 +6,14 @@ import { Payout } from "../models/payoutModel.js";
 import { sendPayoutEmail } from "../services/emailService.js";
 import xenditService from "../services/xenditService.js"; 
 
+/**
+ * Create a new payout.
+ * @route   POST /api/v1/payout/
+ * @param   {Object} req.body - Payout details
+ * @returns {Object} 200 - Created payout object
+ * @throws  {apiError} 404 - Campaign not found, Not authorized or Bank account not found
+ * @throws  {apiError} 500 - Failed to create disbursement
+ */
 const createPayout = asyncHandler(async (req, res) => {
     const { campaign_id, bank_id, amount } = req.body;
     const user_id = req.user._id;
@@ -14,13 +22,13 @@ const createPayout = asyncHandler(async (req, res) => {
     const campaign = await Campaign.findById(campaign_id);
     if (!campaign) throw new apiError(404, "Campaign not found");
     if (String(campaign.creator._id) !== String(user_id)) {
-      throw new apiError(403, "Not authorized");
+      throw new apiError(404, "Not authorized");
     }
     
     // 2. Ambil bank account tertentu
     const bankAccount = await BankAccount.findOne(
       { owner: user_id, "banks._id": bank_id },
-      { "banks.$": 1 } // hanya ambil array element yang cocok
+      { "banks.$": 1 } 
     );
     
     if (!bankAccount) {
@@ -29,7 +37,7 @@ const createPayout = asyncHandler(async (req, res) => {
     
     const selectedBank = bankAccount.banks[0];
     
-    // 3. Panggil API disbursement pakai selectedBank
+    // 3. Panggil API disbursement
     const disbursement = await xenditService.createDisbursement({
       external_id: `payout_${Date.now()}_${campaign_id}`,
       amount,
@@ -44,7 +52,6 @@ const createPayout = asyncHandler(async (req, res) => {
         throw new apiError(500, "Failed to create disbursement", disbursement.error);
     }
 
-    // 6. Simpan payout ke DB
     const payout = await Payout.create({
         campaignID: campaign_id,
         bankAccountID: bank_id,
@@ -54,17 +61,29 @@ const createPayout = asyncHandler(async (req, res) => {
         requestTime: new Date()
     });
 
-    return res.status(201).json({
+    return res.status(200).json({
         message: "Payout request created successfully",
         payout
     });
 });
 
+/**
+ * Get all payouts of a campaign.
+ * @route   GET /api/v1/payout/:campaign_id
+ * @param   {String} req.params.campaign_id - Campaign ID
+ * @returns {Object} 200 - Array of payout objects
+ */
 const getPayouts = asyncHandler(async (req, res) => {
     const payouts = await Payout.find({campaignID: req.params.campaign_id});
     return res.status(200).json({payouts, message: "Payouts fetched successfully"});
 });
 
+/**
+ * Handle disbursement webhook from Xendit.
+ * @route   POST /api/v1/payout/webhook
+ * @param   {Object} req.body - Webhook data from Xendit
+ * @returns {Object} 200 - Webhook processed successfully
+ */
 const handleDisbursementWebhook = asyncHandler(async (req, res) => {
     const signature = req.headers["x-callback-token"];
     if (signature !== process.env.XENDIT_WEBHOOK_TOKEN) {

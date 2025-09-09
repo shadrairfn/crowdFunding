@@ -12,7 +12,15 @@ const generateDonationId = () => {
     return `DON_${Date.now()}_${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
 };
 
-// Create donation with Xendit payment
+/**
+ * Create a new donation.
+ * @route   POST /api/v1/donation/create
+ * @param   {Object} req.body - Donation details
+ * @returns {Object} 200 - Created donation object
+ * @throws  {apiError} 400 - Invalid input or Campaign is already completed
+ * @throws  {apiError} 404 - Campaign not found or Donatur not found
+ * @throws  {apiError} 500 - Failed to create payment invoice
+ */
 const createDonation = asyncHandler(async (req, res) => {
     const { campaign_id, amount, message, payment_method, is_anonymous = false } = req.body;
     const donatur_id = req.user._id;
@@ -79,7 +87,7 @@ const createDonation = asyncHandler(async (req, res) => {
         is_anonymous
     });
 
-    return res.status(201).json({
+    return res.status(200).json({
         message: "Donation created successfully",
         donation: {
             donation_id: donation.donation_id,
@@ -92,7 +100,14 @@ const createDonation = asyncHandler(async (req, res) => {
     });
 });
 
-// Handle Xendit webhook
+/**
+ * Handle Xendit webhook. This is called by Xendit when a payment status changes.
+ * @route   POST /api/v1/donation/webhook/xendit
+ * @param   {Object} req.body - Webhook data from Xendit
+ * @returns {Object} 200 - Webhook processed successfully
+ * @throws  {apiError} 400 - Invalid webhook token
+ * @throws  {apiError} 404 - Donation not found
+ */
 const handleXenditWebhook = asyncHandler(async (req, res) => {
     console.log('🔔 Webhook received from Xendit:', {
         headers: req.headers,
@@ -106,7 +121,7 @@ const handleXenditWebhook = asyncHandler(async (req, res) => {
     // Verify webhook signature
     if (signature !== process.env.XENDIT_WEBHOOK_TOKEN) {
         console.error('❌ Invalid webhook token');
-        return res.status(401).json({ message: "Invalid webhook token" });
+        return res.status(400).json({ message: "Invalid webhook token" });
     }
     console.log('✅ Webhook token verified');
 
@@ -157,7 +172,13 @@ const handleXenditWebhook = asyncHandler(async (req, res) => {
     });
 });
 
-// Get donation status
+/**
+ * Get donation status.
+ * @route   GET /api/v1/donation/status/:donation_id
+ * @param   {String} req.params.donation_id - Donation ID
+ * @returns {Object} 200 - Donation status object
+ * @throws  {apiError} 404 - Donation not found
+ */
 const getDonationStatus = asyncHandler(async (req, res) => {
     const { donation_id } = req.params;
 
@@ -184,7 +205,14 @@ const getDonationStatus = asyncHandler(async (req, res) => {
     });
 });
 
-// Get donatur's donation history
+/**
+ * Get donatur's donation history.
+ * @route   GET /api/v1/donation/history
+ * @param   {String} req.user._id - Donatur ID
+ * @param   {Object} req.query - Query parameters
+ * @param   {String} req.query.status - Donation status
+ * @returns {Object} 200 - Donatur's donation history
+ */
 const getDonaturHistory = asyncHandler(async (req, res) => {
     const donatur_id = req.user._id;
     const { page = 1, limit = 10, status } = req.query;
@@ -214,7 +242,16 @@ const getDonaturHistory = asyncHandler(async (req, res) => {
     });
 });
 
-// Get campaign donations (for campaign owner or public view)
+/**
+ * Get campaign donations (for campaign owner or public view).
+ * @route   GET /api/v1/donation/campaign/:campaign_id
+ * @param   {String} req.params.campaign_id - Campaign ID
+ * @param   {Object} req.query - Query parameters
+ * @param   {String} req.query.page - Page number
+ * @param   {String} req.query.limit - Number of donations per page
+ * @returns {Object} 200 - Campaign donations array
+ * @throws  {apiError} 404 - Campaign not found
+ */
 const getCampaignDonations = asyncHandler(async (req, res) => {
     const { campaign_id } = req.params;
     const { page = 1, limit = 10 } = req.query;
@@ -264,7 +301,14 @@ const getCampaignDonations = asyncHandler(async (req, res) => {
     });
 });
 
-// Cancel pending donation
+/**
+ * Cancel pending donation.
+ * @route   POST /api/v1/donation/cancel/:donation_id
+ * @param   {String} req.params.donation_id - Donation ID
+ * @returns {Object} 200 - Donation cancellation status
+ * @throws  {apiError} 404 - Donation not found
+ * @throws  {apiError} 400 - Only pending donations can be cancelled
+ */
 const cancelDonation = asyncHandler(async (req, res) => {
     const { donation_id } = req.params;
     const donatur_id = req.user._id;
