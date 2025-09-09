@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/userModel.js";
 
-// Verifikasi Token
+/**
+ * Verify JWT token from Authorization header.
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 const verifyJWT = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   console.log("Auth Header:", authHeader);
@@ -36,6 +41,12 @@ const verifyJWT = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to check if user is mitra.
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 const mitraOnly = (req, res, next) => {
   if (req.user && req.user.role === "mitra") {
     next();
@@ -44,6 +55,12 @@ const mitraOnly = (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to check if user is donatur.
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 const donaturOnly = (req, res, next) => {
   if (req.user && req.user.role === "donatur") {
     next();
