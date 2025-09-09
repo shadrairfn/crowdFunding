@@ -38,6 +38,10 @@ const campaignSchema = new Schema({
         type: String,
         enum: ['fundraising', 'ongoing', 'completed'],
         default: 'fundraising'
+    },
+    payoutAmount : {
+        type: Number,
+        default: 0
     }
 }, {timestamps: true})
 

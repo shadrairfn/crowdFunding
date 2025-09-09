@@ -46,6 +46,11 @@ const userSchema = new Schema(
             required: true,
             enum: ['mitra', 'donatur']
         },
+        bank_account: {
+            bank_code: {type: String},
+            account_number: {type: String},
+            account_name: {type: String}
+        },
         refreshToken: {
             type: String
         },

@@ -42,22 +42,51 @@ const createCampaign = asyncHandler(async (req, res) => {
 })
 
 const getAllCampaigns = asyncHandler(async (req, res) => {
-    const campaigns = await Campaign.find().populate("creator");
+    const campaigns = await Campaign.find().populate("creator", "username email fullname");
     
-    // Sort by closest to goal amount
+    // Sort by closest to goal amount (highest percentage completion first)
     const sortedCampaigns = campaigns.sort((a, b) => {
         const percentageA = (a.current_amount / a.goal_amount) * 100;
         const percentageB = (b.current_amount / b.goal_amount) * 100;
-        return percentageB - percentageA; // Descending order 
+        return percentageB - percentageA;
     });
     
+    // Add completion percentage to each campaign
+    const campaignsWithPercentage = sortedCampaigns.map(campaign => ({
+        ...campaign.toObject(),
+        completion_percentage: Math.round((campaign.current_amount / campaign.goal_amount) * 100),
+        remaining_amount: campaign.goal_amount - campaign.current_amount
+    }));
+    
     return res.status(200).json({
-        campaigns: sortedCampaigns,
+        campaigns: campaignsWithPercentage,
         message: "Campaigns sorted by closest to goal amount"
+    });
+})
+
+// Get single campaign with donation details
+const getCampaignById = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    
+    const campaign = await Campaign.findById(id).populate("creator", "username email fullname");
+    if (!campaign) {
+        throw new apiError(404, "Campaign not found");
+    }
+    
+    const campaignWithDetails = {
+        ...campaign.toObject(),
+        completion_percentage: Math.round((campaign.current_amount / campaign.goal_amount) * 100),
+        remaining_amount: campaign.goal_amount - campaign.current_amount
+    };
+    
+    return res.status(200).json({
+        campaign: campaignWithDetails,
+        message: "Campaign retrieved successfully"
     });
 })
 
 export {
     createCampaign,
-    getAllCampaigns
+    getAllCampaigns,
+    getCampaignById
 }

@@ -44,4 +44,12 @@ const mitraOnly = (req, res, next) => {
   }
 };
 
-export { verifyJWT, mitraOnly };
+const donaturOnly = (req, res, next) => {
+  if (req.user && req.user.role === "donatur") {
+    next();
+  } else {
+    return res.status(403).json({ message: "Access denied, donatur only" });
+  }
+};
+
+export { verifyJWT, mitraOnly, donaturOnly };
