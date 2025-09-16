@@ -104,8 +104,51 @@ const getCampaignById = asyncHandler(async (req, res) => {
     });
 })
 
+/** * Update a campaign by ID.
+ * @route   PUT /api/v1/campaign/campaigns/:id
+ * @param   {String} req.params.id - Campaign ID
+ * @param   {Object} req.body - Updated campaign details
+ * @returns {Object} 200 - Updated campaign object
+ * @throws  {apiError} 404 - Campaign not found
+ */
+// Placeholder for updateCampaign function
+const updateCampaign = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { descriptionUpdate, images } = req.body;
+
+    const imageFiles = req.files;
+    if (!imageFiles || imageFiles.length === 0) {
+        throw new apiError(400, "At least one image is required");
+    }
+
+    // Get image paths
+    const imageLocalPaths = imageFiles.map(file => file.path);
+
+    // Upload to cloudinary
+    const imageLinks = [];
+    for (const path of imageLocalPaths) {
+        const result = await uploadOnCloudinary(path);
+        imageLinks.push(result.url);
+    }
+
+    const campaign = await Campaign.findById(id)
+    if (!campaign) {
+        throw new apiError(404, "Campaign not found");
+    }
+
+    campaign.descriptionUpdate = descriptionUpdate;
+    campaign.images = imageLinks;
+    await campaign.save();
+
+    return res.status(200).json({
+        message: "Campaign update successfully",
+        campaign
+    })
+})
+
 export {
     createCampaign,
     getAllCampaigns,
-    getCampaignById
+    getCampaignById,
+    updateCampaign
 }

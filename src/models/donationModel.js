@@ -65,7 +65,6 @@ const donationSchema = new Schema({
 }, { timestamps: true })
 
 // Indexes for better query performance
-donationSchema.index({ donation_id: 1 })
 donationSchema.index({ xendit_invoice_id: 1 })
 donationSchema.index({ xendit_external_id: 1 })
 donationSchema.index({ campaign_id: 1, payment_status: 1 })

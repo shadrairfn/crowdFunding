@@ -42,6 +42,10 @@ const campaignSchema = new Schema({
     payoutAmount : {
         type: Number,
         default: 0
+    },
+    descriptionUpdate: {
+        type: String,
+        default: ""
     }
 }, {timestamps: true})
 
